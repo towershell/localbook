@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalBook</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#4f46e5">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ========== 登录/注册页面 ========== -->
+  <div id="authPage" class="page">
+    <div class="auth-container">
+      <div class="auth-header">
+        <h1>📒 LocalBook</h1>
+        <p class="auth-subtitle">LocalBook</p>
+      </div>
+
+      <!-- 登录表单 -->
+      <form id="loginForm" class="auth-form active-form">
+        <h2>登录</h2>
+        <div class="form-group">
+          <label for="loginUsername">用户名</label>
+          <input type="text" id="loginUsername" placeholder="请输入用户名" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">密码</label>
+          <input type="password" id="loginPassword" placeholder="请输入密码" required autocomplete="current-password">
+        </div>
+        <label class="remember-me">
+          <input type="checkbox" id="rememberMe"> 记住密码
+        </label>
+        <button type="submit" class="btn btn-primary">登 录</button>
+        <p class="auth-switch">
+          还没有账号？<a href="#" id="showRegister">立即注册</a>
+        </p>
+      </form>
+
+      <!-- 注册表单 -->
+      <form id="registerForm" class="auth-form">
+        <h2>注册</h2>
+        <div class="form-group">
+          <label for="regUsername">用户名</label>
+          <input type="text" id="regUsername" placeholder="请输入用户名" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="regPassword">登录密码</label>
+          <input type="password" id="regPassword" placeholder="用于登录" required autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label for="regToken">加密令牌（Token）</label>
+          <input type="password" id="regToken" placeholder="用于加密/解密密码，请妥善保管" required>
+          <small class="form-hint">令牌用于加密存储的密码，解密时需输入相同的令牌</small>
+        </div>
+        <div class="form-group">
+          <label for="regConfirmToken">确认令牌</label>
+          <input type="password" id="regConfirmToken" placeholder="再次输入令牌" required>
+        </div>
+        <button type="submit" class="btn btn-primary">注 册</button>
+        <p class="auth-switch">
+          已有账号？<a href="#" id="showLogin">返回登录</a>
+        </p>
+      </form>
+
+      <!-- 导入备份 -->
+      <input type="file" id="authImportFileInput" accept=".json" style="display:none">
+      <div class="auth-import">
+        <span class="auth-import-sep">或</span>
+        <button id="authImportBtn" class="btn btn-ghost" type="button">📂 导入备份数据</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 密码管理页面 ========== -->
+  <div id="managePage" class="page">
+    <header class="manage-header">
+      <div class="header-left">
+        <h1>📒 LocalBook</h1>
+        <span class="header-divider">|</span>
+        <span class="header-user" id="displayUser"></span>
+        <span class="header-divider">|</span>
+        <span class="version-badge" id="versionBadge"></span>
+        <span class="header-divider">|</span>
+        <button id="exportBtn" class="btn btn-ghost">导出</button>
+      </div>
+      <div class="header-right">
+        <span class="header-clock" id="headerClock"></span>
+        <button id="logoutBtn" class="btn btn-outline">退出登录</button>
+      </div>
+    </header>
+
+    <main class="manage-main">
+      <div class="manage-toolbar">
+        <div class="toolbar-left">
+          <div class="tab-bar">
+            <button class="tab" data-tab="memos">备忘录</button>
+            <button class="tab" data-tab="stickies">便签</button>
+            <button class="tab" data-tab="contacts">联系人</button>
+            <button class="tab active" data-tab="passwords">密码管理</button>
+          </div>
+        </div>
+        <div class="toolbar-actions">
+          <button id="addBtn" class="btn btn-primary" style="width:auto;">+ 新增密码</button>
+          <button id="addStickyBtn" class="btn btn-primary" style="width:auto;display:none;">+ 新增便签</button>
+        </div>
+      </div>
+
+      <!-- 密码视图 -->
+      <div id="passwordsView">
+        <!-- 空状态 -->
+        <div id="emptyState" class="empty-state">
+          <div class="empty-icon">📋</div>
+          <p>暂无保存的密码</p>
+          <p class="empty-hint">点击上方「新增密码」开始添加</p>
+        </div>
+
+        <!-- 密码表格 -->
+        <div id="tableWrapper" class="table-wrapper" style="display:none;">
+          <table id="passwordTable">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>地址</th>
+                <th>用户名</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="passwordList"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 备忘录视图 -->
+      <div id="memosView" class="memos-view" style="display:none;">
+        <div class="calendar-header">
+          <button id="prevMonth" class="btn btn-outline cal-nav">&lt;</button>
+          <span id="calendarTitle" class="calendar-title"></span>
+          <button id="nextMonth" class="btn btn-outline cal-nav">&gt;</button>
+        </div>
+        <table class="calendar-table">
+          <thead>
+            <tr>
+              <th>日</th><th>一</th><th>二</th><th>三</th>
+              <th>四</th><th>五</th><th>六</th>
+            </tr>
+          </thead>
+          <tbody id="calendarBody"></tbody>
+        </table>
+      </div>
+
+      <!-- 便签视图 -->
+      <div id="stickiesView" class="stickies-view" style="display:none;">
+        <div id="stickyEmpty" class="empty-state">
+          <div class="empty-icon">📝</div>
+          <p>暂无便签</p>
+          <p class="empty-hint">点击上方「新增便签」开始添加</p>
+        </div>
+        <div id="stickyList" class="sticky-list"></div>
+      </div>
+
+      <!-- 联系人视图 -->
+      <div id="contactsView" class="contacts-view" style="display:none;">
+        <div class="contacts-toolbar">
+          <input type="text" id="contactSearch" class="search-input" placeholder="搜索联系人...">
+          <button id="addContactBtn" class="btn btn-primary" style="width:auto;">+ 新增联系人</button>
+        </div>
+        <div id="contactEmpty" class="empty-state">
+          <div class="empty-icon">👤</div>
+          <p>暂无联系人</p>
+          <p class="empty-hint">点击上方「新增联系人」开始添加</p>
+        </div>
+        <div id="contactList" class="contact-list"></div>
+      </div>
+
+      <div class="manage-footer">
+        本工具运行数据在浏览器缓存中，修改数据后请及时导出数据到本地。恢复数据请在登陆时导入备份的数据。
+      </div>
+    </main>
+  </div>
+
+  <!-- ========== 新增密码模态框 ========== -->
+  <div id="addModal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="addModalTitle">新增密码</h3>
+        <button class="modal-close" id="closeAddModal">&times;</button>
+      </div>
+      <form id="addPasswordForm">
+        <input type="hidden" id="addEntryId">
+        <div class="form-group">
+          <label for="addName">名称</label>
+          <input type="text" id="addName" placeholder="例如：GitHub" required>
+        </div>
+        <div class="form-group">
+          <label for="addAddress">地址</label>
+          <input type="text" id="addAddress" placeholder="例如：github.com" required>
+        </div>
+        <div class="form-group">
+          <label for="addUsername">用户名</label>
+          <input type="text" id="addUsername" placeholder="登录用户名 / 邮箱" required>
+        </div>
+        <div class="form-group">
+          <label for="addPassword">密码</label>
+          <input type="password" id="addPassword" placeholder="要保存的密码" required>
+        </div>
+        <div class="form-group">
+          <label for="addToken">加密令牌（Token）</label>
+          <input type="password" id="addToken" placeholder="注册时设置的加密令牌" required>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" id="cancelAdd">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========== 解密模态框 ========== -->
+  <div id="decryptModal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>解密密码</h3>
+        <button class="modal-close" id="closeDecryptModal">&times;</button>
+      </div>
+      <div id="decryptInfo" class="decrypt-info">
+        <div class="info-row"><span class="info-label">名称：</span><span id="decryptName"></span></div>
+        <div class="info-row"><span class="info-label">地址：</span><span id="decryptAddress"></span></div>
+        <div class="info-row"><span class="info-label">用户名：</span><span id="decryptUser"></span></div>
+      </div>
+      <form id="decryptForm">
+        <div class="form-group">
+          <label for="decryptToken">请输入加密令牌（Token）</label>
+          <input type="password" id="decryptToken" placeholder="注册时设置的加密令牌" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="decryptSubmit">验证并解密</button>
+      </form>
+      <div id="decryptResult" class="decrypt-result" style="display:none;">
+        <div class="result-label">解密后的密码：</div>
+        <div class="result-password" id="decryptedPassword"></div>
+        <button class="btn btn-outline" id="hidePasswordBtn">隐藏</button>
+      </div>
+      <div id="decryptError" class="decrypt-error" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ========== 备忘录编辑模态框 ========== -->
+  <div id="memoModal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="memoModalTitle">编辑备忘录</h3>
+        <button class="modal-close" id="closeMemoModal">&times;</button>
+      </div>
+      <div style="margin-bottom:0.5rem;font-size:0.85rem;color:var(--text-secondary);" id="memoDateLabel"></div>
+      <textarea id="memoContent" class="memo-textarea" rows="8" placeholder="记录今日事项..."></textarea>
+      <div class="form-actions" style="margin-top:1rem;">
+        <button class="btn btn-outline" id="cancelMemo">取消</button>
+        <button class="btn btn-primary" id="saveMemoBtn">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 便签编辑模态框 ========== -->
+  <div id="stickyModal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="stickyModalTitle">新增便签</h3>
+        <button class="modal-close" id="closeStickyModal">&times;</button>
+      </div>
+      <form id="stickyForm">
+        <input type="hidden" id="stickyId">
+        <div class="form-group">
+          <label for="stickyTitle">标题</label>
+          <input type="text" id="stickyTitle" placeholder="便签标题（可选）">
+        </div>
+        <div class="form-group">
+          <label for="stickyContent">内容</label>
+          <textarea id="stickyContent" class="memo-textarea" rows="6" placeholder="写点什么..." required></textarea>
+        </div>
+        <div class="form-group">
+          <label>颜色</label>
+          <div class="sticky-color-picker" id="stickyColorPicker">
+            <label class="sticky-color-opt">
+              <input type="radio" name="stickyColor" value="#fff9c4" checked>
+              <span class="sticky-color-swatch" style="background:#fff9c4;"></span>
+            </label>
+            <label class="sticky-color-opt">
+              <input type="radio" name="stickyColor" value="#c8e6c9">
+              <span class="sticky-color-swatch" style="background:#c8e6c9;"></span>
+            </label>
+            <label class="sticky-color-opt">
+              <input type="radio" name="stickyColor" value="#bbdefb">
+              <span class="sticky-color-swatch" style="background:#bbdefb;"></span>
+            </label>
+            <label class="sticky-color-opt">
+              <input type="radio" name="stickyColor" value="#f8bbd0">
+              <span class="sticky-color-swatch" style="background:#f8bbd0;"></span>
+            </label>
+            <label class="sticky-color-opt">
+              <input type="radio" name="stickyColor" value="#e1bee7">
+              <span class="sticky-color-swatch" style="background:#e1bee7;"></span>
+            </label>
+            <label class="sticky-color-opt">
+              <input type="radio" name="stickyColor" value="#ffe0b2">
+              <span class="sticky-color-swatch" style="background:#ffe0b2;"></span>
+            </label>
+            <label class="sticky-color-opt">
+              <input type="radio" name="stickyColor" value="#b2dfdb">
+              <span class="sticky-color-swatch" style="background:#b2dfdb;"></span>
+            </label>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" id="cancelSticky">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========== 联系人编辑模态框 ========== -->
+  <div id="contactModal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="contactModalTitle">新增联系人</h3>
+        <button class="modal-close" id="closeContactModal">&times;</button>
+      </div>
+      <form id="contactForm">
+        <input type="hidden" id="contactId">
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <div class="form-group" style="flex:1;min-width:120px;">
+            <label for="contactName">姓名</label>
+            <input type="text" id="contactName" placeholder="姓名" required>
+          </div>
+          <div class="form-group" style="flex:1;min-width:120px;">
+            <label for="contactNickname">昵称</label>
+            <input type="text" id="contactNickname" placeholder="昵称">
+          </div>
+        </div>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <div class="form-group" style="flex:1;min-width:120px;">
+            <label for="contactPhone">手机</label>
+            <input type="tel" id="contactPhone" placeholder="手机号码">
+          </div>
+          <div class="form-group" style="flex:1;min-width:120px;">
+            <label for="contactLandline">座机</label>
+            <input type="tel" id="contactLandline" placeholder="座机号码">
+          </div>
+        </div>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <div class="form-group" style="flex:1;min-width:160px;">
+            <label for="contactEmail">邮箱</label>
+            <input type="email" id="contactEmail" placeholder="邮箱地址">
+          </div>
+          <div class="form-group" style="width:80px;">
+            <label for="contactAge">年龄</label>
+            <input type="number" id="contactAge" placeholder="年龄" min="0" max="200" style="width:100%;">
+          </div>
+          <div class="form-group" style="width:90px;">
+            <label for="contactGender">性别</label>
+            <select id="contactGender" style="width:100%;">
+              <option value="">--</option>
+              <option value="男">男</option>
+              <option value="女">女</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="contactAddress">地址</label>
+          <input type="text" id="contactAddress" placeholder="地址">
+        </div>
+        <div class="form-group">
+          <label for="contactNote">备注</label>
+          <textarea id="contactNote" class="memo-textarea" rows="3" placeholder="备注信息"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" id="cancelContact">取消</button>
+          <button type="submit" class="btn btn-primary" id="saveContactBtn">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <canvas id="sakuraCanvas"></canvas>
+  <script src="js/lib/lunar.min.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
+</body>
+</html>

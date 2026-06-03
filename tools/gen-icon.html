@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>生成 LocalBook 图标</title></head>
+<body style="text-align:center;font-family:system-ui;padding:2rem;">
+<h2>点击生成 PWA 图标</h2>
+<canvas id="c192" width="192" height="192" style="border:1px solid #ddd;margin:1rem;"></canvas>
+<canvas id="c512" width="512" height="512" style="border:1px solid #ddd;margin:1rem;"></canvas>
+<br>
+<button onclick="gen(192)" style="padding:0.5rem 1.5rem;margin:0.5rem;font-size:1rem;">下载 192x192</button>
+<button onclick="gen(512)" style="padding:0.5rem 1.5rem;margin:0.5rem;font-size:1rem;">下载 512x512</button>
+<script>
+function draw(cvs) {
+  const s = cvs.width;
+  const ctx = cvs.getContext('2d');
+  const r = s * 0.1875;
+  const g = ctx.createLinearGradient(0,0,s,s);
+  g.addColorStop(0,'#667eea'); g.addColorStop(1,'#764ba2');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(r,0);
+  ctx.lineTo(s-r,0);
+  ctx.quadraticCurveTo(s,0,s,r);
+  ctx.lineTo(s,s-r);
+  ctx.quadraticCurveTo(s,s,s-r,s);
+  ctx.lineTo(r,s);
+  ctx.quadraticCurveTo(0,s,0,s-r);
+  ctx.lineTo(0,r);
+  ctx.quadraticCurveTo(0,0,r,0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const em = s * 0.4, tx = s/2, ty = s*0.37, fs = s * 0.12;
+  ctx.font = em + 'px system-ui';
+  ctx.fillText('📒', tx, ty);
+  ctx.font = 'bold ' + fs + 'px system-ui';
+  ctx.fillText('LocalBook', tx, s*0.72);
+}
+draw(document.getElementById('c192'));
+draw(document.getElementById('c512'));
+function gen(s) {
+  const c = document.createElement('canvas');
+  c.width = s; c.height = s;
+  draw(c);
+  c.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'icon-' + s + '.png';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+}
+</script>
+</body>
+</html>

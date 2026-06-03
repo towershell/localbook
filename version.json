@@ -1,0 +1,19 @@
+{
+  "name": "LocalBook",
+  "version": "1.2.0",
+  "description": "LocalBook",
+  "updated": "2026-06-02",
+  "Auth": "TowerShell",
+  "changelog": [
+    {
+      "version": "1.2.0",
+      "date": "2026-06-02",
+      "reason": "修复农历日期计算错误（2026年农历四月天数错误）；移除手写农历算法，改用 lunar-javascript 库（紫金山天文台数据）"
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-06-01",
+      "reason": "初始版本"
+    }
+  ]
+}
