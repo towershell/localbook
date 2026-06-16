@@ -1,10 +1,15 @@
 {
   "name": "LocalBook",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "LocalBook",
-  "updated": "2026-06-02",
+  "updated": "2026-06-16",
   "Auth": "TowerShell",
   "changelog": [
+    {
+      "version": "1.3.0",
+      "date": "2026-06-16",
+      "reason": "1、新增左侧导航栏；2、优化数据存储方式；3、使用静态模式框保存草稿数据"
+    },
     {
       "version": "1.2.0",
       "date": "2026-06-02",

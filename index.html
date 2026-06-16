@@ -72,9 +72,9 @@
       <div class="auth-import">
         <span class="auth-import-sep">或</span>
         <button id="authImportBtn" class="btn btn-ghost" type="button">📂 导入备份数据</button>
-      </div>
     </div>
   </div>
+</div>
 
   <!-- ========== 密码管理页面 ========== -->
   <div id="managePage" class="page">
@@ -95,20 +95,31 @@
     </header>
 
     <main class="manage-main">
-      <div class="manage-toolbar">
-        <div class="toolbar-left">
-          <div class="tab-bar">
-            <button class="tab" data-tab="memos">备忘录</button>
-            <button class="tab" data-tab="stickies">便签</button>
-            <button class="tab" data-tab="contacts">联系人</button>
-            <button class="tab active" data-tab="passwords">密码管理</button>
-          </div>
+      <aside class="sidebar">
+        <nav class="sidebar-nav">
+          <button class="nav-item active" data-tab="memos">
+            <span class="nav-icon">📝</span>
+            <span class="nav-label">备忘录</span>
+          </button>
+          <button class="nav-item" data-tab="stickies">
+            <span class="nav-icon">📌</span>
+            <span class="nav-label">便签</span>
+          </button>
+          <button class="nav-item" data-tab="contacts">
+            <span class="nav-icon">👤</span>
+            <span class="nav-label">联系人</span>
+          </button>
+          <button class="nav-item" data-tab="passwords">
+            <span class="nav-icon">🔒</span>
+            <span class="nav-label">密码管理</span>
+          </button>
+        </nav>
+      </aside>
+      <div class="content-area">
+        <div class="content-actions-bar">
+          <button id="addBtn" class="btn btn-primary" style="display:none;">+ 新增密码</button>
+          <button id="addStickyBtn" class="btn btn-primary" style="display:none;">+ 新增便签</button>
         </div>
-        <div class="toolbar-actions">
-          <button id="addBtn" class="btn btn-primary" style="width:auto;">+ 新增密码</button>
-          <button id="addStickyBtn" class="btn btn-primary" style="width:auto;display:none;">+ 新增便签</button>
-        </div>
-      </div>
 
       <!-- 密码视图 -->
       <div id="passwordsView">
@@ -151,6 +162,13 @@
           </thead>
           <tbody id="calendarBody"></tbody>
         </table>
+        <div class="today-memo-panel">
+          <div class="today-memo-header">
+            <span class="today-memo-label">今日备忘录</span>
+            <span class="today-memo-date" id="todayMemoDate"></span>
+          </div>
+          <div id="todayMemoContent" class="today-memo-content"></div>
+        </div>
       </div>
 
       <!-- 便签视图 -->
@@ -179,6 +197,7 @@
 
       <div class="manage-footer">
         本工具运行数据在浏览器缓存中，修改数据后请及时导出数据到本地。恢复数据请在登陆时导入备份的数据。
+      </div>
       </div>
     </main>
   </div>
@@ -389,9 +408,7 @@
   <script src="js/lib/lunar.min.js"></script>
   <script src="js/app.js"></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
-    }
+    try { navigator.serviceWorker?.register('sw.js'); } catch {}
   </script>
 </body>
 </html>

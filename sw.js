@@ -2,7 +2,7 @@
    LocalBook — Service Worker
    ====================================================================== */
 
-const CACHE = 'localbook-v1.2.0';
+const CACHE = 'localbook-v1.3.0';
 const STATIC_ASSETS = [
   './',
   'index.html',

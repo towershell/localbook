@@ -164,21 +164,114 @@ const CryptoModule = {
 };
 
 // ======================================================================
-// 数据存储层
+// 草稿自动保存（sessionStorage，关闭标签页自动清除）
 // ======================================================================
 
-const LS_KEY = 'pbook_data';
+const Drafts = {
+  _key(k) { return 'pbook_draft_' + k; },
+  save(key, data) {
+    try { sessionStorage.setItem(this._key(key), JSON.stringify(data)); } catch {}
+  },
+  load(key) {
+    try { return JSON.parse(sessionStorage.getItem(this._key(key))); } catch {}
+    return null;
+  },
+  clear(key) {
+    sessionStorage.removeItem(this._key(key));
+  }
+};
+
+// ======================================================================
+// IndexedDB 数据存储
+// ======================================================================
+
+const IDB_NAME = 'pbook_app';
+const IDB_STORE = 'data';
+
+function _openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(IDB_STORE)) {
+        req.result.createObjectStore(IDB_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
 
 const Store = {
-  /** 读取完整数据 */
-  _read() {
-    try { return JSON.parse(localStorage.getItem(LS_KEY)) || { users: [], passwords: {}, memos: {}, stickies: {} }; }
-    catch { return { users: [], passwords: {}, memos: {}, stickies: {} }; }
+  _cache: null,
+  _db: null,
+
+  _default() {
+    return { users: [], passwords: {}, memos: {}, stickies: {}, contacts: {} };
   },
 
-  /** 写入完整数据 */
+  _ensure(data) {
+    if (!data) return this._default();
+    data.users ||= [];
+    data.passwords ||= {};
+    data.memos ||= {};
+    data.stickies ||= {};
+    data.contacts ||= {};
+    return data;
+  },
+
+  /** 初始化：打开数据库 → 读取全部数据到内存缓存 */
+  async init() {
+    try {
+      this._db = await _openDB();
+    } catch {
+      console.warn('LocalBook: IndexedDB unavailable, using in-memory storage (data lost on refresh)');
+      this._cache = this._default();
+      return;
+    }
+    const tx = this._db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get('main');
+    return new Promise((resolve) => {
+      req.onsuccess = () => {
+        this._cache = this._ensure(req.result?.data || this._default());
+        resolve();
+      };
+      req.onerror = () => {
+        this._cache = this._default();
+        resolve();
+      };
+    });
+  },
+
+  /** 同步读取（从内存缓存） */
+  _read() {
+    return this._cache || this._default();
+  },
+
+  /** 同步写入（更新缓存 + 异步写 IndexedDB） */
   _write(data) {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
+    this._cache = this._ensure(data);
+    this._writeToDB(this._cache);
+  },
+
+  /** 异步写入 IndexedDB（立即序列化快照防竞态） */
+  async _writeToDB(data) {
+    if (!this._db) return;
+    const snapshot = JSON.parse(JSON.stringify(data));
+    try {
+      const tx = this._db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put({ id: 'main', data: snapshot });
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = resolve;
+        tx.onerror = reject;
+      });
+    } catch (e) {
+      console.warn('LocalBook: IndexedDB write failed', e);
+    }
+  },
+
+  /** 确保所有缓存已写入 IndexedDB（导出前调用） */
+  async flush() {
+    if (this._cache) await this._writeToDB(this._cache);
   },
 
   getUsers() {
@@ -320,8 +413,9 @@ const Store = {
     this._write(data);
   },
 
-  /** 导出数据 → 下载 JSON 文件 */
-  exportData() {
+  /** 导出数据 → 先 flush 再下载 JSON 文件 */
+  async exportData() {
+    await this.flush();
     const data = this._read();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -514,7 +608,10 @@ const Calendar = {
     const label = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 星期${weekNames[d.getDay()]}`;
     document.getElementById('memoDateLabel').textContent = label;
     document.getElementById('memoModalTitle').textContent = `${label} 农历${lunarStr}`;
-    document.getElementById('memoContent').value = Store.getMemo(dateStr);
+    // 优先恢复草稿
+    const saved = Store.getMemo(dateStr);
+    const draft = Drafts.load('memo');
+    document.getElementById('memoContent').value = (draft && draft.date === dateStr) ? draft.content : saved;
     document.getElementById('memoModal').dataset.date = dateStr;
     document.getElementById('memoModal').style.display = 'flex';
     document.getElementById('memoContent').focus();
@@ -773,15 +870,16 @@ const UI = {
       decryptError: $('decryptError'),
       closeDecryptModal: $('closeDecryptModal'),
 
-      // Tabs
-      tabPasswords: document.querySelector('[data-tab="passwords"]'),
-      tabMemos: document.querySelector('[data-tab="memos"]'),
+      // Sidebar nav
+      sidebarNav: document.querySelector('.sidebar-nav'),
       passwordsView: $('passwordsView'),
       memosView: $('memosView'),
 
       // Calendar
       prevMonth: $('prevMonth'),
       nextMonth: $('nextMonth'),
+      todayMemoContent: $('todayMemoContent'),
+      todayMemoDate: $('todayMemoDate'),
 
       // Memo modal
       memoModal: $('memoModal'),
@@ -791,7 +889,6 @@ const UI = {
       memoContent: $('memoContent'),
 
       // Stickies
-      tabStickies: document.querySelector('[data-tab="stickies"]'),
       stickiesView: $('stickiesView'),
       stickyEmpty: $('stickyEmpty'),
       stickyList: $('stickyList'),
@@ -809,7 +906,6 @@ const UI = {
       stickyColorPicker: $('stickyColorPicker'),
 
       // Contacts
-      tabContacts: document.querySelector('[data-tab="contacts"]'),
       contactsView: $('contactsView'),
       contactEmpty: $('contactEmpty'),
       contactList: $('contactList'),
@@ -874,7 +970,7 @@ const UI = {
   /** 显示版本号 */
   loadVersion() {
     const el = this.elements.versionBadge;
-    if (el) el.textContent = 'v1.2.0';
+    if (el) el.textContent = 'v1.3.0';
   },
 
   // ========== 联系人 ==========
@@ -1031,12 +1127,13 @@ const UI = {
   /** 打开便签编辑模态框（null=新增） */
   openStickyEditor(sticky) {
     const els = this.elements;
+    const draft = sticky ? null : Drafts.load('sticky');
     els.stickyModalTitle.textContent = sticky ? '编辑便签' : '新增便签';
     els.stickyId.value = sticky ? sticky.id : '';
-    els.stickyTitle.value = sticky ? (sticky.title || '') : '';
-    els.stickyContent.value = sticky ? (sticky.content || '') : '';
+    els.stickyTitle.value = sticky ? (sticky.title || '') : (draft?.title || '');
+    els.stickyContent.value = sticky ? (sticky.content || '') : (draft?.content || '');
     // 设置颜色
-    const color = sticky ? (sticky.color || '#fff9c4') : '#fff9c4';
+    const color = sticky ? (sticky.color || '#fff9c4') : (draft?.color || '#fff9c4');
     const colorRadio = els.stickyColorPicker.querySelector(`input[value="${color}"]`);
     if (colorRadio) colorRadio.checked = true;
     els.stickyModal.style.display = 'flex';
@@ -1061,6 +1158,7 @@ const UI = {
     }
 
     const now = new Date().toISOString();
+    Drafts.clear('sticky');
     if (id) {
       await Store.updateSticky(userId, id, { title, content, color, updatedAt: now });
       this.toast('便签已更新');
@@ -1087,26 +1185,19 @@ const UI = {
     els.managePage.classList.add('active');
     els.displayUser.textContent = user.username;
 
-    // 加载版本号
     this.loadVersion();
-
-    // 启动时钟
     this.startClock();
-
-    // 初始化日历
     Calendar.init();
 
-    // 默认显示密码 tab
     this.switchTab('passwords');
-
     this.renderPasswordList();
   },
 
-  /** 切换 tab（密码管理 / 备忘录） */
+  /** 切换导航项 */
   switchTab(tab) {
     const els = this.elements;
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.nav-item[data-tab="${tab}"]`).classList.add('active');
 
     // 全部隐藏
     els.passwordsView.style.display = 'none';
@@ -1131,7 +1222,21 @@ const UI = {
     } else {
       els.memosView.style.display = 'block';
       Calendar.render();
+      this.renderTodayMemo();
     }
+  },
+
+  /** 渲染今日备忘录面板 */
+  renderTodayMemo() {
+    const els = this.elements;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const content = Store.getMemo(today);
+    const weekNames = ['日','一','二','三','四','五','六'];
+    els.todayMemoDate.textContent = `${today} 星期${weekNames[now.getDay()]}`;
+    els.todayMemoContent.innerHTML = content
+      ? this._esc(content).replace(/\n/g, '<br>')
+      : '<span class="today-memo-empty">今日暂无备忘录</span>';
   },
 
   /** 切换到登录/注册页面 */
@@ -1446,49 +1551,68 @@ const UI = {
     });
 
     // 导出
-    els.exportBtn.addEventListener('click', () => Store.exportData());
+    els.exportBtn.addEventListener('click', async () => {
+      await Store.exportData();
+      UI.toast('数据已导出');
+    });
 
-    // Tab 切换
-    els.tabPasswords.addEventListener('click', () => this.switchTab('passwords'));
-    els.tabMemos.addEventListener('click', () => this.switchTab('memos'));
-    els.tabStickies.addEventListener('click', () => this.switchTab('stickies'));
+    // 侧边栏导航切换
+    if (els.sidebarNav) {
+      els.sidebarNav.addEventListener('click', (e) => {
+        const navItem = e.target.closest('.nav-item');
+        if (navItem) this.switchTab(navItem.dataset.tab);
+      });
+    }
 
     // 日历导航
     els.prevMonth.addEventListener('click', () => Calendar.prevMonth());
     els.nextMonth.addEventListener('click', () => Calendar.nextMonth());
 
-    // 备忘录编辑
-    els.closeMemoModal.addEventListener('click', () => {
+    // 备忘录编辑 — 关闭时自动保存草稿
+    function _closeMemoModal() {
+      const dateStr = els.memoModal.dataset.date;
+      const content = els.memoContent.value.trim();
+      if (content) Drafts.save('memo', { date: dateStr, content });
       els.memoModal.style.display = 'none';
-    });
-    els.cancelMemo.addEventListener('click', () => {
-      els.memoModal.style.display = 'none';
-    });
+    }
+    els.closeMemoModal.addEventListener('click', _closeMemoModal);
+    els.cancelMemo.addEventListener('click', _closeMemoModal);
     els.memoModal.addEventListener('click', (e) => {
-      if (e.target === els.memoModal) els.memoModal.style.display = 'none';
+      if (e.target === els.memoModal) _closeMemoModal();
     });
     els.saveMemoBtn.addEventListener('click', async () => {
       const dateStr = els.memoModal.dataset.date;
       const content = els.memoContent.value;
       await Store.saveMemo(dateStr, content);
+      Drafts.clear('memo');
       els.memoModal.style.display = 'none';
       this.toast('备忘录已保存');
       Calendar.render();
+      this.renderTodayMemo();
     });
 
     // 便签新增
     els.addStickyBtn.addEventListener('click', () => this.openStickyEditor(null));
 
-    // 便签模态框
-    els.closeStickyModal.addEventListener('click', () => { els.stickyModal.style.display = 'none'; });
-    els.cancelSticky.addEventListener('click', () => { els.stickyModal.style.display = 'none'; });
+    // 便签模态框 — 关闭时自动保存草稿
+    function _closeStickyModal() {
+      const title = els.stickyTitle.value.trim();
+      const content = els.stickyContent.value.trim();
+      if (title || content) {
+        Drafts.save('sticky', {
+          title,
+          content,
+          color: els.stickyColorPicker.querySelector('input[name="stickyColor"]:checked')?.value || '#fff9c4'
+        });
+      }
+      els.stickyModal.style.display = 'none';
+    }
+    els.closeStickyModal.addEventListener('click', _closeStickyModal);
+    els.cancelSticky.addEventListener('click', _closeStickyModal);
     els.stickyModal.addEventListener('click', (e) => {
-      if (e.target === els.stickyModal) els.stickyModal.style.display = 'none';
+      if (e.target === els.stickyModal) _closeStickyModal();
     });
     els.stickyForm.addEventListener('submit', (e) => this.handleStickyFormSubmit(e));
-
-    // 联系人 Tab
-    els.tabContacts.addEventListener('click', () => this.switchTab('contacts'));
 
     // 联系人搜索
     els.contactSearch.addEventListener('input', () => this.renderContacts(els.contactSearch.value));
@@ -1705,10 +1829,14 @@ const Sakura = {
 // 应用启动
 // ======================================================================
 
-function init() {
+async function init() {
   UI.initElements();
   Sakura.init();
 
+  // 初始化 IndexedDB 存储
+  await Store.init();
+
+  // 尝试恢复登录
   const restored = AppState.restoreSession();
   if (restored) {
     UI.showManagePage(AppState.currentUser);
