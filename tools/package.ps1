@@ -28,8 +28,8 @@ $outputPath = Join-Path $parentDir $outputName
 
 Write-Host "Packaging LocalBook v${version} ..." -ForegroundColor Cyan
 
-# Create tar archive (exclude previous archives, this script, Thumbs.db)
-& tar -caf $outputPath --exclude=*.tar --exclude=tools/package.ps1 --exclude=Thumbs.db -C $projectRoot .
+# Create tar archive (exclude hidden dirs, previous archives, this script, Thumbs.db)
+& tar -caf $outputPath --exclude=.git --exclude=node_modules --exclude=*.tar --exclude=tools/package.ps1 --exclude=Thumbs.db -C $projectRoot .
 
 if ($LASTEXITCODE -eq 0) {
   $size = (Get-Item $outputPath).Length
